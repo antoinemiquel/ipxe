@@ -1,8 +1,0 @@
-#!ipxe
-
-dhcp
-set cloud-config-url https://raw.githubusercontent.com/antoinemiquel/coreos_init/master/install/cloud-config.yaml
-set base-url http://alpha.release.core-os.net/amd64-usr/current
-kernel ${base-url}/coreos_production_pxe.vmlinuz cloud-config-url=${cloud-config-url} sshkey="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDeDvWykhov7mz2kwKlHJLaqq/IQUdeyRMXCZECmOj+ALzbVJkvxUCuuV3rtc8dhNMUfWyR+8S9YH/WzfiRTLQ/qwCDNMKyuyDb/JLHpbT4b5wPwEguzTp3jUaAPftI7BJrco3tuaTk22RDfB0RPY9wQgikF62zmL7wnl6xYmjNq/DVpyhrEKLa+PXrKSo1ixC3LgiK+UGAcdCTPZcYgHmNcG8GANXnASaIkwJvy6fs6g+fZY5YuNOOeNoFxCea9I9iUFTuNhDU4WB8iluVHFN/enfpJNojG+gFRp5EZTLLoHLkvJbwS/6tXT7yEtAGvrVTyYl94PS6wso7rd0rLbTN antoine@antoine-portable"
-initrd ${base-url}/coreos_production_pxe_image.cpio.gz
-boot

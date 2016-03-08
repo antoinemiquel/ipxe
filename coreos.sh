@@ -2,13 +2,10 @@
 
 set -xe
 
-ISO=ipxe.iso
-ISE_RULE=bin/${ISO}
-ISO_BIN=src/${ISO_RULE}
-
-SCRIPT_NAME=coreos.ipxe
-
-PACKAGE=coreos_ipxe.tar.gz
+function create_delivery
+{
+    mkdir delivery || rm -Rf delivery/*
+}
 
 function go_to_dirname
 {
@@ -24,35 +21,49 @@ function go_to_dirname
 
 function builder
 {
+    mkdir output || rm -Rf output/*
+    SCRIPT_NAME=$1
     echo "Starting build..."
     SCRIPT_PATH="$(pwd)/${SCRIPT_NAME}"
+    ISO_NAME=`echo ${SCRIPT_NAME} | sed "s/.ipxe//g"`.iso
     file ${SCRIPT_PATH}
 
+    echo -n "------ $SCRIPT_NAME" >> output/metadata
     echo -n "date: " >> output/metadata
     date >> output/metadata
 
-    for RULE in ${ISO_RULE}
-    do
-        make -C src -j ${RULE} EMBED=${SCRIPT_PATH}
-        echo -n "file: " >> output/metadata
-        file "src/${RULE}" >> output/metadata
-        echo -n "sha1sum: " >> output/metadata
-        sha1sum  "ipxe/src/${RULE}" >> output/metadata
-        mv "src/${RULE}" output/
-    done
+    make -C src -j bin/ipxe.iso EMBED=${SCRIPT_PATH}
+    echo -n "file: " >> output/metadata
+    file "src/bin/ipxe.iso" >> output/metadata
+    echo -n "sha1sum: " >> output/metadata
+    sha1sum  "src/bin/ipxe.iso" >> output/metadata
+    mv "src/bin/ipxe.iso" output/${ISO_NAME}
 }
 
 function package
 {
+    SCRIPT_NAME=$1
+    PACKAGE=`echo ${SCRIPT_NAME} | sed "s/.ipxe//g"`.tar.gz
     echo "Starting package..."
-    mkdir delivery || rm -Rf delivery/*
     cd output
     cat metadata
-    tar -czvf ${PACKAGE} *
+    tar -czvf ${PACKAGE} metadata *.iso
     file ${PACKAGE}
     mv ${PACKAGE} ../delivery/
+    cd ..
+}
+
+function start_build
+{
+    SCRIPT_DIR="$(pwd)"
+    for IPXE_FILE in `ls *.ipxe`
+    do
+        go_to_dirname
+        builder ${IPXE_FILE}
+        package ${IPXE_FILE}
+    done
 }
 
 go_to_dirname
-builder
-package
+create_delivery
+start_build
