@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 
 set -xe
-
-function create_delivery
-{
-    mkdir delivery || rm -Rf delivery/*
-}
+IPXE_SCRIPTS_DIR=ipxe_scripts
+IPXE_BUILD_DIR=ipxe_build
 
 function go_to_dirname
 {
@@ -19,12 +16,28 @@ function go_to_dirname
     echo "-> Current directory is" $(pwd)
 }
 
+function create_delivery
+{
+    mkdir delivery || rm -Rf delivery/*
+}
+
+function start_build
+{
+    SCRIPT_DIR="$(pwd)/${IPXE_SCRIPTS_DIR}"
+    for IPXE_FILE in `ls ${SCRIPT_DIR}/*.ipxe`
+    do
+        go_to_dirname
+        builder `basename ${IPXE_FILE}`
+        package `basename ${IPXE_FILE}`
+    done
+}
+
 function builder
 {
     mkdir output || rm -Rf output/*
     SCRIPT_NAME=$1
     echo "Starting build..."
-    SCRIPT_PATH="$(pwd)/${SCRIPT_NAME}"
+    SCRIPT_PATH="$(pwd)/${IPXE_SCRIPTS_DIR}/${SCRIPT_NAME}"
     ISO_NAME=`echo ${SCRIPT_NAME} | sed "s/.ipxe//g"`.iso
     file ${SCRIPT_PATH}
 
@@ -32,12 +45,12 @@ function builder
     echo -n "date: " >> output/metadata
     date >> output/metadata
 
-    make -C src -j bin/ipxe.iso EMBED=${SCRIPT_PATH}
+    make -C ${IPXE_BUILD_DIR}/src -j bin/ipxe.iso EMBED=${SCRIPT_PATH}
     echo -n "file: " >> output/metadata
-    file "src/bin/ipxe.iso" >> output/metadata
+    file "${IPXE_BUILD_DIR}/src/bin/ipxe.iso" >> output/metadata
     echo -n "sha1sum: " >> output/metadata
-    sha1sum  "src/bin/ipxe.iso" >> output/metadata
-    mv "src/bin/ipxe.iso" output/${ISO_NAME}
+    sha1sum  "${IPXE_BUILD_DIR}/src/bin/ipxe.iso" >> output/metadata
+    mv "${IPXE_BUILD_DIR}/src/bin/ipxe.iso" output/${ISO_NAME}
 }
 
 function package
@@ -51,17 +64,6 @@ function package
     file ${PACKAGE}
     mv ${PACKAGE} ../delivery/
     cd ..
-}
-
-function start_build
-{
-    SCRIPT_DIR="$(pwd)"
-    for IPXE_FILE in `ls *.ipxe`
-    do
-        go_to_dirname
-        builder ${IPXE_FILE}
-        package ${IPXE_FILE}
-    done
 }
 
 go_to_dirname
