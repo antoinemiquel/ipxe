@@ -1,3 +1,3 @@
------- coreos_network.ipxedate: mardi 8 mars 2016, 22:07:01 (UTC+0100)
-file: ipxe_build/src/bin/ipxe.iso: x86 boot sector
-sha1sum: db2c736ef8acd50feed80ac498099e63a8b3cbae  ipxe_build/src/bin/ipxe.iso
+------ coreos_network.ipxedate: dimanche 31 décembre 2017, 07:24:04 (UTC+0100)
+file: ipxe_build/src/bin/ipxe.iso: ISO 9660 CD-ROM filesystem data 'iPXE'
+sha1sum: bd1da38bc6dab8ab953c87fa9573282ad86a663b  ipxe_build/src/bin/ipxe.iso

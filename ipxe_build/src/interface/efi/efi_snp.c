@@ -25,6 +25,7 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <assert.h>
 #include <byteswap.h>
 #include <ipxe/netdevice.h>
+#include <ipxe/vlan.h>
 #include <ipxe/iobuf.h>
 #include <ipxe/in.h>
 #include <ipxe/version.h>
@@ -709,6 +710,7 @@ efi_snp_receive ( EFI_SIMPLE_NETWORK_PROTOCOL *snp,
 	const void *iob_ll_src;
 	uint16_t iob_net_proto;
 	unsigned int iob_flags;
+	size_t copy_len;
 	int rc;
 
 	DBGC2 ( snpdev, "SNPDEV %p RECEIVE %p(+%lx)", snpdev, data,
@@ -721,18 +723,23 @@ efi_snp_receive ( EFI_SIMPLE_NETWORK_PROTOCOL *snp,
 	/* Poll the network device */
 	efi_snp_poll ( snpdev );
 
-	/* Dequeue a packet, if one is available */
+	/* Check for an available packet */
 	iobuf = list_first_entry ( &snpdev->rx, struct io_buffer, list );
 	if ( ! iobuf ) {
 		DBGC2 ( snpdev, "\n" );
 		rc = -EAGAIN;
 		goto out_no_packet;
 	}
-	list_del ( &iobuf->list );
 	DBGC2 ( snpdev, "+%zx\n", iob_len ( iobuf ) );
 
-	/* Return packet to caller */
-	memcpy ( data, iobuf->data, iob_len ( iobuf ) );
+	/* Dequeue packet */
+	list_del ( &iobuf->list );
+
+	/* Return packet to caller, truncating to buffer length */
+	copy_len = iob_len ( iobuf );
+	if ( copy_len > *len )
+		copy_len = *len;
+	memcpy ( data, iobuf->data, copy_len );
 	*len = iob_len ( iobuf );
 
 	/* Attempt to decode link-layer header */
@@ -754,7 +761,8 @@ efi_snp_receive ( EFI_SIMPLE_NETWORK_PROTOCOL *snp,
 	if ( net_proto )
 		*net_proto = ntohs ( iob_net_proto );
 
-	rc = 0;
+	/* Check buffer length */
+	rc = ( ( copy_len == *len ) ? 0 : -ERANGE );
 
  out_bad_ll_header:
 	free_iob ( iobuf );
@@ -1545,8 +1553,10 @@ static int efi_snp_probe ( struct net_device *netdev ) {
 	struct efi_snp_device *snpdev;
 	EFI_DEVICE_PATH_PROTOCOL *path_end;
 	MAC_ADDR_DEVICE_PATH *macpath;
+	VLAN_DEVICE_PATH *vlanpath;
 	size_t path_prefix_len = 0;
 	unsigned int ifcnt;
+	unsigned int tag;
 	void *interface;
 	EFI_STATUS efirc;
 	int rc;
@@ -1634,7 +1644,7 @@ static int efi_snp_probe ( struct net_device *netdev ) {
 	/* Allocate the new device path */
 	path_prefix_len = efi_devpath_len ( efidev->path );
 	snpdev->path = zalloc ( path_prefix_len + sizeof ( *macpath ) +
-				sizeof ( *path_end ) );
+				sizeof ( *vlanpath ) + sizeof ( *path_end ) );
 	if ( ! snpdev->path ) {
 		rc = -ENOMEM;
 		goto err_alloc_device_path;
@@ -1643,14 +1653,24 @@ static int efi_snp_probe ( struct net_device *netdev ) {
 	/* Populate the device path */
 	memcpy ( snpdev->path, efidev->path, path_prefix_len );
 	macpath = ( ( ( void * ) snpdev->path ) + path_prefix_len );
-	path_end = ( ( void * ) ( macpath + 1 ) );
 	memset ( macpath, 0, sizeof ( *macpath ) );
 	macpath->Header.Type = MESSAGING_DEVICE_PATH;
 	macpath->Header.SubType = MSG_MAC_ADDR_DP;
 	macpath->Header.Length[0] = sizeof ( *macpath );
 	memcpy ( &macpath->MacAddress, netdev->ll_addr,
-		 sizeof ( macpath->MacAddress ) );
+		 netdev->ll_protocol->ll_addr_len );
 	macpath->IfType = ntohs ( netdev->ll_protocol->ll_proto );
+	if ( ( tag = vlan_tag ( netdev ) ) ) {
+		vlanpath = ( ( ( void * ) macpath ) + sizeof ( *macpath ) );
+		memset ( vlanpath, 0, sizeof ( *vlanpath ) );
+		vlanpath->Header.Type = MESSAGING_DEVICE_PATH;
+		vlanpath->Header.SubType = MSG_VLAN_DP;
+		vlanpath->Header.Length[0] = sizeof ( *vlanpath );
+		vlanpath->VlanId = tag;
+		path_end = ( ( ( void * ) vlanpath ) + sizeof ( *vlanpath ) );
+	} else {
+		path_end = ( ( ( void * ) macpath ) + sizeof ( *macpath ) );
+	}
 	memset ( path_end, 0, sizeof ( *path_end ) );
 	path_end->Type = END_DEVICE_PATH_TYPE;
 	path_end->SubType = END_ENTIRE_DEVICE_PATH_SUBTYPE;
